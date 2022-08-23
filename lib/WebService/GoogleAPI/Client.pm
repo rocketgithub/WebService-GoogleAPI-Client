@@ -520,7 +520,7 @@ sub _process_params {
   $params->{path} =~ s/^\///sxmg;    ## remove leading '/'  from path
   $params->{path} = "$api_discovery_struct->{baseUrl}/$params->{path}"
     unless $params->{path} =~
-    /^$api_discovery_struct->{baseUrl}/ixsmg;    ## prepend baseUrl if required
+    /^https/ixsmg;    ## prepend baseUrl if required
 
   ## if errors - add detail available in the discovery struct for the method and service to aid debugging
   push @teapot_errors,
