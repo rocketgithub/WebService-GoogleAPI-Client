@@ -562,12 +562,12 @@ sub _interpolate_path_parameters_append_query_params_and_return_errors
 
 
 
-  #switch the path we're dealing with to the flat path if any of
-  #the parameters match the flat path
-  $params->{path} = $discovery_struct->{flatPath} 
-    if grep { $_ eq 'flat' } map {$path_params{camel $_} || ()} keys %{ $params->{options} };
-
   if (ref($params->{options}) eq 'HASH') {
+    #switch the path we're dealing with to the flat path if any of
+    #the parameters match the flat path
+    $params->{path} = $discovery_struct->{flatPath} 
+      if grep { $_ eq 'flat' } map {$path_params{camel $_} || ()} keys %{ $params->{options} };
+
     #loop through params given, placing them in the path or query,
     #or leaving them for the request body
     for my $param_name ( keys %{ $params->{options} } ) {
