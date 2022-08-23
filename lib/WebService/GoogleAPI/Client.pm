@@ -567,58 +567,59 @@ sub _interpolate_path_parameters_append_query_params_and_return_errors
   $params->{path} = $discovery_struct->{flatPath} 
     if grep { $_ eq 'flat' } map {$path_params{camel $_} || ()} keys %{ $params->{options} };
 
+  if (ref($params->{options}) eq 'HASH') {
+    #loop through params given, placing them in the path or query,
+    #or leaving them for the request body
+    for my $param_name ( keys %{ $params->{options} } ) {
 
-  #loop through params given, placing them in the path or query,
-  #or leaving them for the request body
-  for my $param_name ( keys %{ $params->{options} } ) {
+      #first check if it needs to be interpolated into the path
+      if ($path_params{$param_name} || $path_params{camel $param_name}) { 
+        #pull out the value from the hash, and remove the key
+        my $param_value = delete $params->{options}{$param_name};
+        
+        #Camelize the param name if not passed in customly, allowing
+        #the user to pass in camelCase or snake_case param names.
+        #This implictly allows for a non camelCased param to be left
+        #alone in a custom param.
+        $param_name = camel $param_name if $path_params{camel $param_name};
 
-    #first check if it needs to be interpolated into the path
-    if ($path_params{$param_name} || $path_params{camel $param_name}) { 
-      #pull out the value from the hash, and remove the key
-      my $param_value = delete $params->{options}{$param_name};
+        #first deal with any param that doesn't have a plus, b/c
+        #those just get interpolated
+        $params->{path} =~ s/\{$param_name\}/$param_value/;
+
+        #if there's a plus in the path spec, we need more work
+        if ($params->{path} =~ /\{ \+ $param_name \}/x) {
+    my $pattern = $discovery_struct->{parameters}{$param_name}{pattern};
+    #if the given param matches google's pattern for the
+    #param, just interpolate it straight
+    if ($param_value =~ /$pattern/) {
+      $params->{path} =~ s/\{\+$param_name\}/$param_value/;
+    } else {
+      #N.B. perhaps support passing an arrayref or csv for those
+      #params such as jobs.projects.jobs.delete which have two
+      #dynamic parts. But for now, unnecessary
       
-      #Camelize the param name if not passed in customly, allowing
-      #the user to pass in camelCase or snake_case param names.
-      #This implictly allows for a non camelCased param to be left
-      #alone in a custom param.
-      $param_name = camel $param_name if $path_params{camel $param_name};
-
-      #first deal with any param that doesn't have a plus, b/c
-      #those just get interpolated
-      $params->{path} =~ s/\{$param_name\}/$param_value/;
-
-      #if there's a plus in the path spec, we need more work
-      if ($params->{path} =~ /\{ \+ $param_name \}/x) {
-	my $pattern = $discovery_struct->{parameters}{$param_name}{pattern};
-	#if the given param matches google's pattern for the
-	#param, just interpolate it straight
-	if ($param_value =~ /$pattern/) {
-	  $params->{path} =~ s/\{\+$param_name\}/$param_value/;
-	} else {
-	  #N.B. perhaps support passing an arrayref or csv for those
-	  #params such as jobs.projects.jobs.delete which have two
-	  #dynamic parts. But for now, unnecessary
-	  
-	  #remove the regexy parts of the pattern to interpolate it
-	  #into the path, assuming the user has provided just the
-	  #dynamic portion of the param. 
-	  $pattern =~ s/^\^ | \$$//gx; my $placeholder = qr/ \[ \^ \/ \] \+ /x;
-	  $params->{path} =~ s/\{\+$param_name\}/$pattern/x;
-	  $params->{path} =~ s/$placeholder/$param_value/x;
-	  push @teapot_errors, "Not enough parameters given for {+$param_name}."
-	    if $params->{path} =~ /$placeholder/;
-	}
-      }
-      #skip to the next run, so I don't need an else clause later
-      next; #I don't like nested if-elses
+      #remove the regexy parts of the pattern to interpolate it
+      #into the path, assuming the user has provided just the
+      #dynamic portion of the param. 
+      $pattern =~ s/^\^ | \$$//gx; my $placeholder = qr/ \[ \^ \/ \] \+ /x;
+      $params->{path} =~ s/\{\+$param_name\}/$pattern/x;
+      $params->{path} =~ s/$placeholder/$param_value/x;
+      push @teapot_errors, "Not enough parameters given for {+$param_name}."
+        if $params->{path} =~ /$placeholder/;
     }
-    #if it's not in the list of params, then it goes in the
-    #request body, and our work here is done
-    next unless $discovery_struct->{parameters}{$param_name};
+        }
+        #skip to the next run, so I don't need an else clause later
+        next; #I don't like nested if-elses
+      }
+      #if it's not in the list of params, then it goes in the
+      #request body, and our work here is done
+      next unless $discovery_struct->{parameters}{$param_name};
 
-    #it must be a GET type query param, so push the name and value
-    #on our param stack and take it off of the options list
-    push @get_query_params,  $param_name, delete $params->{options}{$param_name};  
+      #it must be a GET type query param, so push the name and value
+      #on our param stack and take it off of the options list
+      push @get_query_params,  $param_name, delete $params->{options}{$param_name};  
+    }
   }
 
   #if there are any query params...
